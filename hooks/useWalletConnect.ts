@@ -1,4 +1,5 @@
 
+
 import { useWallet } from '@suiet/wallet-kit';
 import { useEffect } from 'react';
 
@@ -7,20 +8,18 @@ export interface WalletConnectData {
   walletName: string;
 }
 
-/**
- * Hook to detect wallet connection and trigger a callback with wallet data.
- * @param onConnect Callback to run when wallet is connected.
- */
 export function useWalletConnect(onConnect: (walletData: WalletConnectData) => void) {
-  const { connected, account, name } = useWallet();
+  const wallet = useWallet();
 
   useEffect(() => {
-    if (connected && account?.address && name) {
+    // Debug log
+    console.log('Wallet state:', wallet);
+
+    if (wallet.connected && wallet.account?.address && wallet.name) {
       onConnect({
-        walletAddress: account.address,
-        walletName: name,
+        walletAddress: wallet.account.address,
+        walletName: wallet.name,
       });
     }
-    // Only run when connection/account/name changes
-  }, [connected, account, name, onConnect]);
+  }, [wallet.connected, wallet.account, wallet.name, onConnect]);
 }
