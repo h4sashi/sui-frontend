@@ -1,5 +1,6 @@
 'use client'
 
+import React, { Suspense } from 'react';
 import { WalletProvider as SuietWalletProvider } from '@suiet/wallet-kit';
 import '@suiet/wallet-kit/style.css';
 import { useWalletConnect, WalletConnectData } from '../../hooks/useWalletConnect';
@@ -9,7 +10,7 @@ interface WalletProviderProps {
   children: React.ReactNode;
 }
 
-export default function WalletProvider({ children }: WalletProviderProps) {
+function WalletConnection() {
   const searchParams = useSearchParams();
   const BACKEND_URL = 'https://rinoco.onrender.com/auth/wallet-connect';
   
@@ -47,9 +48,16 @@ export default function WalletProvider({ children }: WalletProviderProps) {
     }
   });
 
+  return null;
+}
+
+export default function WalletProvider({ children }: WalletProviderProps) {
   return (
     <SuietWalletProvider>
-      {children as any}
+      <Suspense fallback={null}>
+        <WalletConnection />
+      </Suspense>
+      {React.isValidElement(children) ? children : <>{children}</>}
     </SuietWalletProvider>
   );
 }
