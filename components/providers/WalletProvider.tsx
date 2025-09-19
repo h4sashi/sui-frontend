@@ -1,24 +1,23 @@
 'use client'
 
-
 import { WalletProvider as SuietWalletProvider } from '@suiet/wallet-kit';
 import '@suiet/wallet-kit/style.css';
 import { useWalletConnect, WalletConnectData } from '../../hooks/useWalletConnect';
+import { useSearchParams } from 'next/navigation';
 
 interface WalletProviderProps {
   children: React.ReactNode;
 }
 
 export default function WalletProvider({ children }: WalletProviderProps) {
-  // Replace with your backend URL
+  const searchParams = useSearchParams();
   const BACKEND_URL = 'https://rinoco.onrender.com/auth/wallet-connect';
-
+  
   useWalletConnect(async (walletData: WalletConnectData) => {
-    console.log('Wallet connection triggered with data:', walletData);
-    // Generate a unique state for this session (could use uuid)
-    const state = window.crypto.randomUUID?.() || Math.random().toString(36).substring(2);
-
     try {
+      // Get state from URL query parameter
+      const state = searchParams.get('state');
+      
       console.log('Making request to:', BACKEND_URL);
       console.log('With payload:', { ...walletData, state });
       
@@ -30,11 +29,10 @@ export default function WalletProvider({ children }: WalletProviderProps) {
         },
         body: JSON.stringify({
           ...walletData,
-          state,
+          state: state || window.crypto.randomUUID?.() || Math.random().toString(36).substring(2),
         }),
       });
-      console.log('Response status:', res.status);
-      
+
       if (!res.ok) {
         const errorText = await res.text();
         console.error('Server error response:', errorText);
@@ -51,7 +49,6 @@ export default function WalletProvider({ children }: WalletProviderProps) {
 
   return (
     <SuietWalletProvider>
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       {children as any}
     </SuietWalletProvider>
   );
