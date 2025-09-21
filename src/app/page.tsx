@@ -13,7 +13,7 @@ export default function Home() {
             Sui Wallet Integration Demo
           </h2>
           <p className="text-gray-600">
-            This demo showcases how to integrate Suiet wallet kit with Next.js.
+            {/* This demo showcases how to integrate Suiet wallet kit with Next.js. */}
           </p>
         </div>
 
