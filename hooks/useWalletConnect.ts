@@ -1,4 +1,4 @@
-
+//useWalletConnect.ts
 
 import { useWallet } from '@suiet/wallet-kit';
 import { useEffect } from 'react';

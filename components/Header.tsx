@@ -1,3 +1,5 @@
+// Header.tsx
+
 'use client'
 
 import { ConnectButton } from '@suiet/wallet-kit';

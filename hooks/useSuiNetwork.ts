@@ -1,3 +1,5 @@
+// script name: useSuiNetwork.ts
+
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { useMemo } from 'react';
 

@@ -1,3 +1,6 @@
+// page.tsx
+
+
 import Header from '@/components/Header';
 import WalletInfo from '@/components/WalletInfo';
 import TransactionDemo from '@/components/TransactionDemo';
