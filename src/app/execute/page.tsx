@@ -25,6 +25,7 @@ function ExecutePageContent() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [result, setResult] = useState<TransactionResult | null>(null);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string>('');
 
   useEffect(() => {
     const txParam = searchParams.get('tx');
@@ -83,6 +84,82 @@ function ExecutePageContent() {
       if (result.effects?.status?.status === 'success') {
         setStatus(`✅ Transaction successful! Digest: ${result.digest}`);
         
+        // ENHANCED: Send result back to Unity game immediately
+        if (window.opener) {
+          console.log('Sending transaction result back to Unity...');
+          window.opener.postMessage({ 
+            type: 'TRANSACTION_SUCCESS', 
+            transactionHash: result.digest,
+            walletAddress: wallet.account?.address,
+            result: result,
+            timestamp: new Date().toISOString()
+          }, '*');
+        }
+
+        // ENHANCED: Auto-verify transaction via API call
+        if (wallet.account?.address) {
+          setVerificationStatus('Verifying transaction on server...');
+          try {
+            console.log('Auto-verifying transaction:', result.digest);
+            
+            const verifyResponse = await fetch('https://rinoco.onrender.com/verify-transaction', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                transactionHash: result.digest,
+                walletAddress: wallet.account.address
+              }),
+              // Add timeout to prevent hanging
+              signal: AbortSignal.timeout(30000) // 30 second timeout
+            });
+
+            const verifyData = await verifyResponse.json();
+            console.log('Verification response:', verifyData);
+
+            if (verifyData.success && verifyData.verified) {
+              setVerificationStatus(`✅ Binder verified! ID: ${verifyData.binderId?.substring(0, 8)}...`);
+              
+              // Send verification success back to Unity
+              if (window.opener) {
+                window.opener.postMessage({ 
+                  type: 'VERIFICATION_SUCCESS', 
+                  transactionHash: result.digest,
+                  binderId: verifyData.binderId,
+                  verified: true,
+                  message: verifyData.message
+                }, '*');
+              }
+            } else {
+              setVerificationStatus(`⚠️ Verification pending: ${verifyData.message || 'Please check manually'}`);
+              
+              // Send partial success back to Unity
+              if (window.opener) {
+                window.opener.postMessage({ 
+                  type: 'VERIFICATION_PENDING', 
+                  transactionHash: result.digest,
+                  verified: false,
+                  message: verifyData.message
+                }, '*');
+              }
+            }
+          } catch (verifyError) {
+            console.error('Auto-verification failed:', verifyError);
+            setVerificationStatus('❌ Auto-verification failed - please verify manually in game');
+            
+            // Send verification failure back to Unity
+            if (window.opener) {
+              window.opener.postMessage({ 
+                type: 'VERIFICATION_FAILED', 
+                transactionHash: result.digest,
+                error: verifyError instanceof Error ? verifyError.message : 'Unknown verification error'
+              }, '*');
+            }
+          }
+        }
+        
         setTimeout(() => {
           setStatus(`Transaction completed successfully! You can close this window.`);
         }, 3000);
@@ -90,6 +167,15 @@ function ExecutePageContent() {
         const errorMessage = result.effects?.status?.error || 'Unknown transaction error';
         setStatus(`❌ Transaction failed: ${errorMessage}`);
         console.error('Transaction execution failed:', result);
+        
+        // Send failure back to Unity
+        if (window.opener) {
+          window.opener.postMessage({ 
+            type: 'TRANSACTION_FAILED', 
+            error: errorMessage,
+            result: result
+          }, '*');
+        }
       }
 
     } catch (error: unknown) {
@@ -109,6 +195,14 @@ function ExecutePageContent() {
       }
       
       setStatus(`❌ Execution failed: ${errorMessage}`);
+      
+      // Send error back to Unity
+      if (window.opener) {
+        window.opener.postMessage({ 
+          type: 'TRANSACTION_ERROR', 
+          error: errorMessage
+        }, '*');
+      }
     } finally {
       setIsExecuting(false);
     }
@@ -116,9 +210,57 @@ function ExecutePageContent() {
 
   const handleClose = () => {
     if (window.opener) {
-      window.opener.postMessage({ type: 'TRANSACTION_COMPLETE', result }, '*');
+      // Send close message back to Unity
+      window.opener.postMessage({ 
+        type: 'WINDOW_CLOSING', 
+        result: result,
+        finalStatus: status
+      }, '*');
     }
     window.close();
+  };
+
+  // ENHANCED: Manual verification button for fallback
+  const handleManualVerification = async () => {
+    if (!result?.digest || !wallet.account?.address) {
+      setVerificationStatus('❌ No transaction to verify');
+      return;
+    }
+
+    setVerificationStatus('Manually verifying transaction...');
+    
+    try {
+      const verifyResponse = await fetch('https://rinoco.onrender.com/verify-transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionHash: result.digest,
+          walletAddress: wallet.account.address
+        })
+      });
+
+      const verifyData = await verifyResponse.json();
+      console.log('Manual verification response:', verifyData);
+
+      if (verifyData.success && verifyData.verified) {
+        setVerificationStatus(`✅ Manual verification successful! Binder ID: ${verifyData.binderId?.substring(0, 8)}...`);
+        
+        // Send manual verification success back to Unity
+        if (window.opener) {
+          window.opener.postMessage({ 
+            type: 'MANUAL_VERIFICATION_SUCCESS', 
+            transactionHash: result.digest,
+            binderId: verifyData.binderId,
+            verified: true
+          }, '*');
+        }
+      } else {
+        setVerificationStatus(`❌ Manual verification failed: ${verifyData.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Manual verification error:', error);
+      setVerificationStatus('❌ Manual verification failed');
+    }
   };
 
   const getStatusStyle = () => {
@@ -158,6 +300,16 @@ function ExecutePageContent() {
               <p className="font-medium">{status}</p>
             </div>
           </div>
+
+          {/* ENHANCED: Verification Status Display */}
+          {verificationStatus && (
+            <div className="mb-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-blue-900 mb-1">Verification Status</h3>
+                <p className="text-blue-800 text-sm">{verificationStatus}</p>
+              </div>
+            </div>
+          )}
 
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-3">Wallet Status</h2>
@@ -224,6 +376,16 @@ function ExecutePageContent() {
               </button>
             )}
 
+            {/* ENHANCED: Manual verification button */}
+            {result && result.effects?.status?.status === 'success' && (
+              <button
+                onClick={handleManualVerification}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              >
+                Verify Manually
+              </button>
+            )}
+
             <button
               onClick={handleClose}
               className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
@@ -272,6 +434,8 @@ function ExecutePageContent() {
           <div className="text-sm text-gray-500">
             <p>This window will execute a Sui blockchain transaction using your connected wallet.</p>
             <p className="mt-1">Make sure you have sufficient SUI tokens for gas fees.</p>
+            {/* ENHANCED: Unity communication info */}
+            <p className="mt-2 text-blue-600">Transaction results will be automatically sent back to the game.</p>
           </div>
 
           <ConnectModal
@@ -307,5 +471,3 @@ export default function ExecutePage() {
     </Suspense>
   );
 }
-
-// git add . && git commit -m "Added /Execute" && git push origin main
