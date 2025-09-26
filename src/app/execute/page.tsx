@@ -113,7 +113,7 @@ function ExecutePageContent() {
                 walletAddress: wallet.account.address
               }),
               // Add timeout to prevent hanging
-              signal: AbortSignal.timeout(30000) // 30 second timeout
+              signal: AbortSignal.timeout(60000) // 30 second timeout
             });
 
             const verifyData = await verifyResponse.json();
